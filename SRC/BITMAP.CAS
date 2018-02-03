@@ -1,0 +1,529 @@
+#include "gfx13h.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <dos.h>
+
+volatile unsigned char bitmap_transparent_color = 0;
+
+BITMAP *screen = NULL;
+
+BITMAP *create_bitmap(unsigned int w,unsigned int h)
+{
+  BITMAP *bm = NULL;
+
+  if(!(bm = (BITMAP *)malloc(sizeof(BITMAP))))
+    return NULL;
+
+  memset(bm,0,sizeof(BITMAP));
+
+  bm->w = w;
+  bm->h = h;
+  bm->size = w * h;
+
+  if(!(bm->data = (unsigned char *)malloc(bm->size)))
+  {
+    destroy_bitmap(bm);
+    return NULL;
+  }
+
+  memset(bm->data,0,bm->size);
+
+  return bm;
+}
+
+void destroy_bitmap(BITMAP *bm)
+{
+  if(bm && !screen)
+  {
+    if(bm->data)
+      free(bm->data);
+    free(bm);
+  }
+  bm = NULL;
+}
+
+int create_scrbm()
+{
+  screen = NULL;
+
+  if(!(screen = (BITMAP *)malloc(sizeof(BITMAP))))
+    return 0;
+
+  memset(screen,0,sizeof(BITMAP));
+
+  screen->w = 320;
+  screen->h = 200;
+  screen->size = 64000;
+  screen->data = (unsigned char *)0xA0000000;
+
+  return 1;
+}
+
+void destroy_scrbm()
+{
+  if(screen)
+    free(screen);
+}
+
+void clear_bitmap(BITMAP *bm,unsigned char c)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int size = bm->size;
+
+  asm mov ax,s
+  asm mov es,ax
+  asm mov di,o
+  asm mov al,c
+  asm mov es:[di],al
+  asm mov cx,size
+  L1:
+  asm push cx
+  asm add cx,o
+  asm mov di,cx
+  asm mov es:[di],al
+  asm pop cx
+  asm loop L1
+}
+
+void put_pixel(BITMAP *bm,unsigned int x,unsigned int y,unsigned char c)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int w = bm->w;
+  unsigned int h = bm->h;
+
+  asm mov ax,x
+  asm cmp ax,w
+  asm jnbe L_END
+  asm mov ax,y
+  asm cmp ax,h
+  asm jnbe L_END
+  asm mov bx,w
+  asm mul bx
+  asm add ax,x
+  asm add ax,o
+  asm mov es,s
+  asm mov di,ax
+  asm mov al,c
+  asm mov es:[di],al
+  L_END:
+}
+
+unsigned char get_pixel(BITMAP *bm,unsigned int x,unsigned int y)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int w = bm->w;
+  unsigned int h = bm->h;
+  unsigned char c;
+
+  asm mov ax,x
+  asm cmp ax,w
+  asm jnbe L_END
+  asm mov ax,y
+  asm cmp ax,h
+  asm jnbe L_END
+  asm mov bx,w
+  asm mul bx
+  asm add ax,x
+  asm add ax,o
+  asm mov es,s
+  asm mov di,ax
+  asm mov al,es:[di]
+  asm mov c,al
+  L_END:
+
+  return c;
+}
+
+void blit(BITMAP *src,BITMAP *dest,int _sx,int _sy,int _dx,int _dy,unsigned int w,unsigned int h)
+{
+  int sx,sy,dx,dy,_w,_h;
+
+  sx = _sx;
+  sy = _sy;
+  dx = _dx;
+  dy = _dy;
+  _w = w;
+  _h = h;
+
+  if(dx + _w <= 0 || dy + _h <= 0 || sx + _w <= 0 || sy + _h <= 0)
+    return;
+
+  if(dx < 0)
+  {
+    _w += dx;
+    sx = -dx;
+    dx = 0;
+  }
+
+  if(dy < 0)
+  {
+    _h += dy;
+    sy = -dy;
+    dy = 0;
+  }
+
+  if(sx < 0)
+  {
+    _w += sx;
+    sx = 0;
+  }
+
+  if(sy < 0)
+  {
+    _h += sy;
+    sy = 0;
+  }
+
+  if(sx + _w > src->w)
+  {
+    _w = src->w - sx;
+  }
+
+  if(sy + _h > src->h)
+  {
+    _h = src->h - sy;
+  }
+
+  if(dx + _w > dest->w)
+  {
+    _w = dest->w - dx;
+  }
+
+  if(dy + _h > dest->h)
+  {
+    _h = dest->h - dy;
+  }
+
+  if(_w < 0)
+    _w = 0;
+
+  if(_h < 0)
+    _h = 0;
+
+  if(dx >= dest->w || dy >= dest->h || sx >= src->w || sy >= src->h)
+    return;
+
+  __blit(src,dest,sx,sy,dx,dy,_w,_h);
+
+}
+
+void __blit(BITMAP *src,BITMAP *dest,int _sx,int _sy,int _dx,int _dy,unsigned int w,unsigned int h)
+{
+  unsigned int x,y;
+  unsigned srcs = FP_SEG(src->data);
+  unsigned dests = FP_SEG(dest->data);
+  unsigned srco = FP_OFF(src->data);
+  unsigned desto = FP_OFF(dest->data);
+  unsigned int ws = src->w;
+  unsigned int wd = dest->w;
+
+  asm mov cx,h
+  asm mov x,0
+  asm mov y,0
+  L1:
+  asm push cx
+  asm dec cx
+  asm mov ax,cx
+  asm add ax,_sy
+  asm mov bx,ws
+  asm mul bx
+  asm add ax,x
+  asm add ax,_sx
+  asm push ax
+  asm mov ax,cx
+  asm add ax,_dy
+  asm mov bx,wd
+  asm mul bx
+  asm add ax,x
+  asm add ax,_dx
+  asm push ax
+  asm pop bx // dest:[0]
+  asm pop ax // src:[0]
+  asm add bx,desto
+  asm add ax,srco
+  asm mov cx,w
+  L2:
+  asm push ax
+  asm push bx
+  asm mov es,srcs
+  asm mov di,ax
+  asm mov dl,es:[di]
+  asm mov es,dests
+  asm mov di,bx
+  asm mov es:[di],dl
+  asm pop bx
+  asm pop ax
+  asm inc ax
+  asm inc bx
+
+  asm loop L2
+  asm inc y
+  asm pop cx
+  asm loop L1
+}
+
+void masked_blit(BITMAP *src,BITMAP *dest,int _sx,int _sy,int _dx,int _dy,unsigned int w,unsigned int h)
+{
+  int sx,sy,dx,dy,_w,_h;
+
+  sx = _sx;
+  sy = _sy;
+  dx = _dx;
+  dy = _dy;
+  _w = w;
+  _h = h;
+
+  if(dx + _w <= 0 || dy + _h <= 0 || sx + _w <= 0 || sy + _h <= 0)
+    return;
+
+  if(dx < 0)
+  {
+    _w += dx;
+    sx = -dx;
+    dx = 0;
+  }
+
+  if(dy < 0)
+  {
+    _h += dy;
+    sy = -dy;
+    dy = 0;
+  }
+
+  if(sx < 0)
+  {
+    _w += sx;
+    sx = 0;
+  }
+
+  if(sy < 0)
+  {
+    _h += sy;
+    sy = 0;
+  }
+
+  if(sx + _w > src->w)
+  {
+    _w = src->w - sx;
+  }
+
+  if(sy + _h > src->h)
+  {
+    _h = src->h - sy;
+  }
+
+  if(dx + _w > dest->w)
+  {
+    _w = dest->w - dx;
+  }
+
+  if(dy + _h > dest->h)
+  {
+    _h = dest->h - dy;
+  }
+
+  if(_w < 0)
+    _w = 0;
+
+  if(_h < 0)
+    _h = 0;
+
+  if(dx >= dest->w || dy >= dest->h || sx >= src->w || sy >= src->h)
+    return;
+
+  __masked_blit(src,dest,sx,sy,dx,dy,_w,_h);
+
+}
+
+void __masked_blit(BITMAP *src,BITMAP *dest,int _sx,int _sy,int _dx,int _dy,unsigned int w,unsigned int h)
+{
+  unsigned int x,y;
+  unsigned srcs = FP_SEG(src->data);
+  unsigned dests = FP_SEG(dest->data);
+  unsigned srco = FP_OFF(src->data);
+  unsigned desto = FP_OFF(dest->data);
+  unsigned int ws = src->w;
+  unsigned int wd = dest->w;
+
+  asm mov cx,h
+  asm mov x,0
+  asm mov y,0
+  L1:
+  asm push cx
+  asm dec cx
+  asm mov ax,cx
+  asm add ax,_sy
+  asm mov bx,ws
+  asm mul bx
+  asm add ax,x
+  asm add ax,_sx
+  asm push ax
+  asm mov ax,cx
+  asm add ax,_dy
+  asm mov bx,wd
+  asm mul bx
+  asm add ax,x
+  asm add ax,_dx
+  asm push ax
+  asm pop bx // dest:[0]
+  asm pop ax // src:[0]
+  asm add bx,desto
+  asm add ax,srco
+  asm mov cx,w
+  L2:
+  asm push ax
+  asm push bx
+  asm mov es,srcs
+  asm mov di,ax
+  asm mov dl,es:[di]
+  asm cmp dl,bitmap_transparent_color
+  asm je L3
+  asm mov es,dests
+  asm mov di,bx
+  asm mov es:[di],dl
+  L3:
+  asm pop bx
+  asm pop ax
+  asm inc ax
+  asm inc bx
+
+  asm loop L2
+  asm inc y
+  asm pop cx
+  asm loop L1
+}
+
+void draw_screen_buffer(BITMAP *scrbuf)
+{
+  unsigned s = FP_SEG(scrbuf->data);
+  unsigned o = FP_OFF(scrbuf->data);
+  unsigned int size = scrbuf->size;
+
+  vsync();
+/*
+  asm mov cx,64000
+  asm mov dx,0
+  L1:
+  asm push cx
+  asm mov es,s
+  asm mov ax,o
+  asm add ax,dx
+  asm mov di,ax
+  asm mov cl,es:[di]
+  asm mov ax,0xA000
+  asm mov es,ax
+  asm mov di,dx
+  asm mov es:[di],cl
+  asm inc dx
+  asm pop cx
+  asm loop L1
+*/
+
+  asm mov ax,0xA000
+  asm mov es,ax
+  asm mov di,0
+  asm mov ds,s
+  asm mov si,o
+  asm mov cx,64000
+  asm mov dx,cx
+  asm and dx,1
+  asm shr cx,1
+  asm rep movsw
+  asm mov cx,dx
+  asm rep movsb
+}
+
+void hline(BITMAP *bm,unsigned int x1,unsigned int y,unsigned int x2,unsigned char c)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int w = bm->w;
+
+  asm mov ax,y
+  asm mov bx,w
+  asm mul bx
+  asm add ax,x1
+  asm add ax,o
+  asm mov cx,x2
+  asm sub cx,x1
+  asm inc cx
+  asm mov es,s
+  asm mov dl,c
+  L1:
+  asm mov di,ax
+  asm mov es:[di],dl
+  asm inc ax
+  asm loop L1
+}
+
+void vline(BITMAP *bm,unsigned int x,unsigned int y1,unsigned int y2,unsigned char c)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int w = bm->w;
+
+  asm mov ax,y1
+  asm mov bx,w
+  asm mul bx
+  asm add ax,x
+  asm add ax,o
+  asm mov cx,y2
+  asm sub cx,y1
+  asm inc cx
+  asm mov es,s
+  asm mov dl,c
+  L1:
+  asm mov di,ax
+  asm mov es:[di],dl
+  asm add ax,w
+  asm loop L1
+}
+
+void rect(BITMAP *bm,unsigned int x1,unsigned int y1,unsigned int x2,unsigned int y2,unsigned char c)
+{
+  hline(bm,x1,y1,x2,c);
+  hline(bm,x1,y2,x2,c);
+  vline(bm,x1,y1,y2,c);
+  vline(bm,x2,y1,y2,c);
+}
+
+void rectfill(BITMAP *bm,unsigned int x1,unsigned int y1,unsigned int x2,unsigned int y2,unsigned char c)
+{
+  unsigned s = FP_SEG(bm->data);
+  unsigned o = FP_OFF(bm->data);
+  unsigned int x,y,w = bm->w;
+
+  asm mov cx,y2
+  asm sub cx,y1
+  asm inc cx
+  L1:
+  asm mov y,cx
+  asm dec y
+  asm push cx
+  asm mov cx,x2
+  asm sub cx,x1
+  asm inc cx
+  L2:
+  asm mov x,cx
+  asm dec x
+  asm push cx
+  asm mov ax,y
+  asm add ax,y1
+  asm mov bx,w
+  asm mul bx
+  asm add ax,x
+  asm add ax,x1
+  asm add ax,o
+  asm mov es,s
+  asm mov di,ax
+  asm mov al,c
+  asm mov es:[di],al
+  asm pop cx
+  asm loop L2
+  asm pop cx
+  asm loop L1
+}
+

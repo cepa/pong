@@ -1,0 +1,53 @@
+#include "keyboard.h"
+#include <dos.h>
+
+void interrupt (*__old_kbint)();
+unsigned char key[128];
+unsigned char lastkey = 0;
+
+void interrupt __kbint(void)
+{
+  unsigned char pressed = 0;
+  asm in al,0x60
+  asm mov lastkey,al
+  asm cmp lastkey,128
+  asm jnae L1
+  asm sub lastkey,128
+  asm mov pressed,0
+  asm jmp L2
+  L1:
+  asm mov pressed,1
+  L2:
+  key[lastkey] = pressed;
+  asm mov al,0x20
+  asm out 0x20,al
+}
+
+void install_keyboard()
+{
+  unsigned s = FP_SEG(__kbint);
+  unsigned o = FP_OFF(__kbint);
+  int i;
+  for(i = 0; i < 128; i++) key[i] = 0;
+  asm mov ax,0x3509
+  asm int 0x21
+  asm mov word ptr __old_kbint,bx
+  asm mov word ptr __old_kbint+2,es
+  asm mov ax,0x2509
+  asm mov ds,s
+  asm mov dx,o
+  asm int 0x21
+}
+
+void remove_keyboard()
+{
+  asm mov ax,0x2509
+  asm lds dx,__old_kbint
+  asm int 0x21
+}
+
+void wait_for_any_key()
+{
+  unsigned char lk = lastkey;
+  while(lk == lastkey);
+}

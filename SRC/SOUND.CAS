@@ -1,0 +1,95 @@
+#include "sound.h"
+#include "timer.h"
+
+volatile unsigned int sound_counter = 0;
+volatile unsigned int sound_time = 0;
+volatile char sound_done = 1;
+
+void sound_timer()
+{
+  asm mov ax,sound_time
+  asm cmp sound_counter,ax
+  asm jge L1
+  asm inc sound_counter
+  asm jmp L2
+  L1:
+  asm in al,0x61
+  asm and al,252
+  asm out 0x61,al
+  asm mov sound_time,0
+  asm mov sound_counter,0
+  asm mov sound_done,1
+  L2:
+}
+
+void sound_on(unsigned int d)
+{
+  asm mov ax,d
+  asm cmp ax,0
+  asm je L1
+  asm mov al,0xB6
+  asm out 0x43,al
+  asm mov ax,d
+  asm out 0x42,al
+  asm mov al,ah
+  asm out 0x42,al
+  asm in al,0x61
+  asm or al,3
+  asm out 0x61,al
+  L1:
+}
+
+void sound_off()
+{
+  asm in al,0x61
+  asm and al,252
+  asm out 0x61,al
+  asm mov sound_time,0
+  asm mov sound_counter,0
+}
+
+void __beep(unsigned int d,unsigned int ticks)
+{
+  /*
+  sound_on(d);
+  sound_time = ticks;
+  sound_counter = 0;
+  sound_done = 0;
+  */
+  asm mov ax,d
+  asm cmp ax,0
+  asm je L1
+  asm mov al,0xB6
+  asm out 0x43,al
+  asm mov ax,d
+  asm out 0x42,al
+  asm mov al,ah
+  asm out 0x42,al
+  asm in al,0x61
+  asm or al,3
+  asm out 0x61,al
+  L1:
+
+  asm mov ax,ticks
+  asm mov sound_time,ax
+  asm mov sound_counter,0
+  asm mov sound_done,0
+}
+
+void beep(unsigned int hz,unsigned int ms)
+{
+  __beep(HZ2D(hz),MS2T(ms));
+}
+
+void sound_delay(unsigned int ticks)
+{
+  //asm in al,0x61
+  //asm and al,252
+  //asm out 0x61,al
+
+  asm mov ax,ticks
+  asm mov sound_time,ax
+  asm mov sound_counter,0
+  asm mov sound_done,0
+}
+

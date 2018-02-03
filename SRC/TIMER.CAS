@@ -1,0 +1,77 @@
+#include <dos.h>
+#include <stdio.h>
+#include "timer.h"
+#include "sound.h"
+
+void interrupt (*__old_timerint)();
+void (*__proc)() = NULL;
+volatile unsigned int timer_d = 0;
+volatile unsigned long int timer_ticks = 0;
+void (*timer_delay_proc)() = NULL;
+
+void interrupt __timerint()
+{
+  timer_ticks++;
+  sound_timer();
+  if(__proc) __proc();
+}
+
+void install_timer(unsigned int k,void (*proc)())
+{
+  unsigned s = FP_SEG(__timerint);
+  unsigned o = FP_OFF(__timerint);
+  __proc = proc;
+  timer_d = k;
+
+  asm mov al,0xB6
+  asm out 0x43,al
+  asm mov ax,k
+  asm out 0x40,al
+  asm mov al,ah
+  asm out 0x40,al
+
+  asm mov ax,0x351C
+  asm int 0x21
+  asm mov word ptr __old_timerint,bx
+  asm mov word ptr __old_timerint+2,es
+  asm mov ax,0x251C
+  asm mov ds,s
+  asm mov dx,o
+  asm int 0x21
+}
+
+void remove_timer()
+{
+  timer_d = 0;
+
+  asm mov al,0xB6
+  asm out 0x43,al
+  asm mov ax,0xFFFF
+  asm out 0x40,al
+  asm mov al,ah
+  asm out 0x40,al
+
+  asm mov ax,0x251C
+  asm lds dx,__old_timerint
+  asm int 0x21
+}
+
+void timer_delay(unsigned int ticks)
+{
+  timer_ticks = 0;
+  while(timer_ticks < ticks)
+  {
+    if(timer_delay_proc)
+      timer_delay_proc();
+  }
+}
+
+void install_timer_delay_proc(void (*proc)())
+{
+  timer_delay_proc = proc;
+}
+
+void remove_timer_delay_proc()
+{
+  timer_delay_proc = NULL;
+}

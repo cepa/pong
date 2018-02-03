@@ -1,0 +1,148 @@
+#include "gfx13h.h"
+
+int init13h()
+{
+  if(!create_scrbm())
+    return 0;
+
+  asm mov ax,0x0013
+  asm int 0x10
+
+  return 1;
+}
+
+void close13h()
+{
+  destroy_scrbm();
+
+  asm mov ax,0x0003
+  asm int 0x10
+}
+
+void vga_put_pixel(unsigned int x,unsigned int y,unsigned char color)
+{
+  asm mov ax,x
+  asm cmp ax,320
+  asm jnbe L_END
+  asm mov ax,y
+  asm cmp ax,200
+  asm jnbe L_END
+  asm mov ax,y
+  asm mov bx,320
+  asm mul bx
+  asm add ax,x
+  asm mov bx,0xA000
+  asm mov es,bx
+  asm mov di,ax
+  asm mov al,color
+  asm mov es:[di],al
+  L_END:
+}
+
+unsigned char vga_get_pixel(unsigned int x,unsigned int y)
+{
+  unsigned char color;
+  asm mov ax,x
+  asm cmp ax,320
+  asm jnbe L_END
+  asm mov ax,y
+  asm cmp ax,200
+  asm jnbe L_END
+  asm mov ax,y
+  asm mov bx,320
+  asm mul bx
+  asm add ax,x
+  asm mov bx,0xA000
+  asm mov es,bx
+  asm mov di,ax
+  asm mov al,es:[di]
+  asm mov color,al
+  L_END:
+  return color;
+}
+
+void clear_screen(unsigned char color)
+{
+  vsync();
+  asm mov al,color
+  asm mov bx,0xA000
+  asm mov es,bx
+  asm mov es:[0],al
+
+  asm mov cx,64000
+
+  L1:
+  asm mov di,cx
+  asm mov es:[di],al
+
+  asm loop L1
+}
+
+void set_color(unsigned char c,unsigned char r,unsigned char g,unsigned char b)
+{
+  vsync();
+  asm mov dx,0x03C8
+  asm mov al,c
+  asm out dx,al
+  asm inc dx
+  asm mov al,r
+  asm out dx,al
+  asm mov al,g
+  asm out dx,al
+  asm mov al,b
+  asm out dx,al
+}
+
+void get_color(unsigned char c,unsigned char *r,unsigned char *g,unsigned char *b)
+{
+  unsigned char rr,gg,bb;
+  asm mov dx,0x03C7
+  asm mov al,c
+  asm out dx,al
+  asm inc dx
+  asm inc dx
+  asm in al,dx
+  asm mov rr,al
+  asm in al,dx
+  asm mov gg,al
+  asm in al,dx
+  asm mov bb,al
+  *r = rr;
+  *g = gg;
+  *b = bb;
+}
+
+void set_palette(unsigned char *palette)
+{
+  int i,j = 0;
+  vsync();
+  for(i = 0; i < 256; i++)
+  {
+    set_color(i,palette[j],palette[j + 1],palette[j + 2]);
+    j += 3;
+  }
+}
+
+void get_palette(unsigned char *palette)
+{
+  int i,j = 0;
+  for(i = 0; i < 256; i++)
+  {
+    get_color(i,&palette[j],&palette[j + 1],&palette[j + 2]);
+    j += 3;
+  }
+}
+
+void vsync()
+{
+  asm mov dx,0x3DA
+  L1:
+  asm in al,dx
+  asm test al,0
+  asm jne L1
+}
+
+
+
+
+

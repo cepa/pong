@@ -1,7 +1,9 @@
 # Pong
 
 Yet another Pong game clone.
+
 ![pong](https://raw.githubusercontent.com/cepa/pong/master/Pong.png)
+
 This one was created in Turbo C in 2004 with retro graphics displayed in the 13H mode.
 
 ## How to run it?

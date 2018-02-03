@@ -4,7 +4,7 @@ Yet another Pong game clone.
 
 ![pong](https://raw.githubusercontent.com/cepa/pong/master/Pong.png)
 
-This one was created in Turbo C in 2004 with retro graphics displayed in the 13H mode.
+This one was created in [Turbo C++](https://en.wikipedia.org/wiki/Turbo_C%2B%2B) in 2004 with retro graphics displayed in the 13H mode.
 
 ## How to run it?
 * First download the [package](https://github.com/cepa/pong/archive/master.zip)
@@ -30,7 +30,7 @@ Keys:
 
 
 ## How to build it?
-You'll need to find Turbo C++ somewhere, open the project and compile it.
+You'll need to find [Turbo C++](https://en.wikipedia.org/wiki/Turbo_C%2B%2B) somewhere, open the project and compile it.
 
 ## Questions?
 Visit http://cepa.io

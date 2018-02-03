@@ -12,7 +12,7 @@ This one was created in Turbo C in 2004 with retro graphics displayed in the 13H
 * Unzip
 * Mount the folder with _pong.exe_:
 ~~~
-mount c /path/to/a/pong/folder
+mount c /path/to/pong/folder
 ~~~
 * Run _pong.exe_:
 ~~~
@@ -20,3 +20,19 @@ pong.exe
 ~~~
 * Depending on your hardware, you might need to increase DosBox speed cycles by
 pressing CTRL+WinKey+F12 to around 30000.
+
+## How to play it?
+Keys:
+* player 1:                 UP/DOWN
+* player 2:                  Q/A
+* chosing main menu:        UP/DOWN
+* chosing players menu:   LEFT/RIGHT
+
+
+## How to build it?
+You'll need to find Turbo C++ somewhere, open the project and compile it.
+
+## Questions?
+Visit http://cepa.io
+
+This code is protected by the [Beerware](https://en.wikipedia.org/wiki/Beerware) license :P
